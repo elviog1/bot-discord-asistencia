@@ -8,23 +8,25 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
 });
 
-// Google Sheets Auth
+// ==========================
+// GOOGLE SHEETS
+// ==========================
 const auth = new google.auth.GoogleAuth({
-  keyFile: "credenciales.json",
+  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// Guardar asistencia
+// ==========================
+// GUARDAR ASISTENCIA
+// ==========================
 async function guardarAsistencia() {
   try {
-    console.log("Verificando asistencia...");
+    console.log(`[${new Date().toISOString()}] Verificando asistencia...`);
 
-    // Obtener canales
     const canal1 = await client.channels.fetch(process.env.VOICE_CHANNEL_ID_1);
 
     const canal2 = await client.channels.fetch(process.env.VOICE_CHANNEL_ID_2);
 
-    // Validar canales
     if (!canal1 || !canal1.isVoiceBased()) {
       console.log("Canal 1 inválido");
       return;
@@ -35,7 +37,6 @@ async function guardarAsistencia() {
       return;
     }
 
-    // Unir usuarios sin duplicados
     const miembrosMap = new Map();
 
     [...canal1.members.values(), ...canal2.members.values()].forEach(
@@ -44,15 +45,17 @@ async function guardarAsistencia() {
       },
     );
 
-    const miembros = [...miembrosMap.values()];
+    const miembros = [...miembrosMap.values()].filter(
+      (member) => !member.user.bot,
+    );
 
-    // Validar usuarios
+    console.log(`Usuarios encontrados: ${miembros.length}`);
+
     if (miembros.length === 0) {
       console.log("No hay usuarios conectados");
       return;
     }
 
-    // Google Sheets
     const sheets = google.sheets({
       version: "v4",
       auth,
@@ -67,21 +70,13 @@ async function guardarAsistencia() {
       minute: "2-digit",
     });
 
-    // Datos a guardar
-    const valores = [];
+    const valores = miembros.map((member) => [
+      member.user.username,
+      fecha,
+      hora,
+      member.voice.channel?.name || "Desconocido",
+    ]);
 
-    miembros.forEach((member) => {
-      if (!member.user.bot) {
-        valores.push([
-          member.user.username,
-          fecha,
-          hora,
-          member.voice.channel.name,
-        ]);
-      }
-    });
-
-    // Guardar en Sheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: "Hoja 1!A:D",
@@ -91,22 +86,23 @@ async function guardarAsistencia() {
       },
     });
 
-    console.log("Asistencia guardada correctamente");
+    console.log(`${valores.length} registros guardados correctamente`);
   } catch (error) {
-    console.error("ERROR:");
+    console.error("ERROR AL GUARDAR ASISTENCIA:");
     console.error(error);
   }
 }
 
-// Bot listo
+// ==========================
+// BOT LISTO
+// ==========================
 client.once("ready", () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 
-  // Ejecutar todos los días a las 21:00
   cron.schedule(
     "* * * * *",
-    () => {
-      guardarAsistencia();
+    async () => {
+      await guardarAsistencia();
     },
     {
       timezone: "America/Argentina/Buenos_Aires",
@@ -116,5 +112,29 @@ client.once("ready", () => {
   console.log("Cron iniciado");
 });
 
-// Login
+// ==========================
+// EVENTOS DE CONEXIÓN
+// ==========================
+client.on("disconnect", () => {
+  console.log("Bot desconectado");
+});
+
+client.on("resume", () => {
+  console.log("Conexión reanudada");
+});
+
+// ==========================
+// ERRORES GLOBALES
+// ==========================
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled Rejection:", error);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+});
+
+// ==========================
+// LOGIN
+// ==========================
 client.login(process.env.TOKEN);
