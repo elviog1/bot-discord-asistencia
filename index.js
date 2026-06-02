@@ -16,7 +16,7 @@ app.get("/registros", async (req, res) => {
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: "Hoja 1!A:E",
     });
-    res.json(response.data.values || []);
+    res.json({ values: response.data.values || [] });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
