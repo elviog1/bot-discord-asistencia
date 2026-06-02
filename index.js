@@ -18,7 +18,9 @@ app.get("/registros", async (req, res) => {
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: "Hoja 1!A:E",
     });
-    res.json({ values: response.data.values || [] });
+    const values = response.data.values || [];
+
+    res.json({ values: values.slice(1) }); // Excluir la fila de encabezado
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
