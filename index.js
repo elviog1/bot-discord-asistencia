@@ -69,7 +69,7 @@ async function guardarIngreso(member, canal) {
       range: "Hoja 1!A:E",
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[member.user.username, fecha, hora, canal.name]],
+        values: [[fecha, hora, member.user.username, canal.name]],
       },
     });
 
@@ -131,9 +131,9 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     // ==========================
     if (!oldChannelId && newMonitoreado) {
       fila = [
-        member.user.username,
         fecha,
         hora,
+        member.user.username,
         newState.channel.name,
         "Ingreso",
       ];
@@ -150,9 +150,9 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
       oldChannelId !== newChannelId
     ) {
       fila = [
-        member.user.username,
         fecha,
         hora,
+        member.user.username,
         `${oldState.channel.name} → ${newState.channel.name}`,
         "Cambio de canal",
       ];
@@ -167,9 +167,9 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     // ==========================
     else if (oldMonitoreado && !newChannelId) {
       fila = [
-        member.user.username,
         fecha,
         hora,
+        member.user.username,
         oldState.channel.name,
         "Salida",
       ];
