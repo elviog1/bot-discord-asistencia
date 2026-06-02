@@ -4,6 +4,8 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { google } = require("googleapis");
 
 const app = express();
+const cors = require("cors");
+app.use(cors());
 
 app.get("/", (req, res) => {
   res.send("Bot funcionando");
