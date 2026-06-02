@@ -1,7 +1,19 @@
 require("dotenv").config();
-
+const express = require("express");
 const { Client, GatewayIntentBits } = require("discord.js");
 const { google } = require("googleapis");
+
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot funcionando");
+});
+
+const PORT = process.env.PORT;
+
+app.listen(PORT, () => {
+  console.log(`Servidor iniciado en puerto ${PORT}`);
+});
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
@@ -56,7 +68,7 @@ async function guardarIngreso(member, canal) {
 // ==========================
 // BOT LISTO
 // ==========================
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 });
 
