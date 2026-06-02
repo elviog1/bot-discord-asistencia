@@ -2,7 +2,6 @@ require("dotenv").config();
 
 const { Client, GatewayIntentBits } = require("discord.js");
 const { google } = require("googleapis");
-const cron = require("node-cron");
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
@@ -17,45 +16,10 @@ const auth = new google.auth.GoogleAuth({
 });
 
 // ==========================
-// GUARDAR ASISTENCIA
+// GUARDAR INGRESO
 // ==========================
-async function guardarAsistencia() {
+async function guardarIngreso(member, canal) {
   try {
-    console.log(`[${new Date().toISOString()}] Verificando asistencia...`);
-
-    const canal1 = await client.channels.fetch(process.env.VOICE_CHANNEL_ID_1);
-
-    const canal2 = await client.channels.fetch(process.env.VOICE_CHANNEL_ID_2);
-
-    if (!canal1 || !canal1.isVoiceBased()) {
-      console.log("Canal 1 inválido");
-      return;
-    }
-
-    if (!canal2 || !canal2.isVoiceBased()) {
-      console.log("Canal 2 inválido");
-      return;
-    }
-
-    const miembrosMap = new Map();
-
-    [...canal1.members.values(), ...canal2.members.values()].forEach(
-      (member) => {
-        miembrosMap.set(member.user.id, member);
-      },
-    );
-
-    const miembros = [...miembrosMap.values()].filter(
-      (member) => !member.user.bot,
-    );
-
-    console.log(`Usuarios encontrados: ${miembros.length}`);
-
-    if (miembros.length === 0) {
-      console.log("No hay usuarios conectados");
-      return;
-    }
-
     const sheets = google.sheets({
       version: "v4",
       auth,
@@ -68,27 +32,23 @@ async function guardarAsistencia() {
     const hora = ahora.toLocaleTimeString("es-AR", {
       hour: "2-digit",
       minute: "2-digit",
+      second: "2-digit",
     });
-
-    const valores = miembros.map((member) => [
-      member.user.username,
-      fecha,
-      hora,
-      member.voice.channel?.name || "Desconocido",
-    ]);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: "Hoja 1!A:D",
+      range: "Hoja 1!A:E",
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: valores,
+        values: [[member.user.username, fecha, hora, canal.name]],
       },
     });
 
-    console.log(`${valores.length} registros guardados correctamente`);
+    console.log(
+      `${member.user.username} ingresó a ${canal.name} (${fecha} ${hora})`,
+    );
   } catch (error) {
-    console.error("ERROR AL GUARDAR ASISTENCIA:");
+    console.error("ERROR AL GUARDAR INGRESO:");
     console.error(error);
   }
 }
@@ -98,18 +58,110 @@ async function guardarAsistencia() {
 // ==========================
 client.once("ready", () => {
   console.log(`Bot conectado como ${client.user.tag}`);
+});
 
-  cron.schedule(
-    "* * * * *",
-    async () => {
-      await guardarAsistencia();
-    },
-    {
-      timezone: "America/Argentina/Buenos_Aires",
-    },
-  );
+// ==========================
+// EVENTO DE INGRESO A VOZ
+// ==========================
+client.on("voiceStateUpdate", async (oldState, newState) => {
+  try {
+    const member = newState.member || oldState.member;
 
-  console.log("Cron iniciado");
+    if (!member || member.user.bot) return;
+
+    const canalesMonitoreados = [
+      process.env.VOICE_CHANNEL_ID_1,
+      process.env.VOICE_CHANNEL_ID_2,
+    ];
+
+    const oldChannelId = oldState.channelId;
+    const newChannelId = newState.channelId;
+
+    const oldMonitoreado = canalesMonitoreados.includes(oldChannelId);
+    const newMonitoreado = canalesMonitoreados.includes(newChannelId);
+
+    const ahora = new Date();
+
+    const fecha = ahora.toLocaleDateString("es-AR");
+
+    const hora = ahora.toLocaleTimeString("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    const sheets = google.sheets({
+      version: "v4",
+      auth,
+    });
+
+    let fila = null;
+
+    // ==========================
+    // INGRESO
+    // ==========================
+    if (!oldChannelId && newMonitoreado) {
+      fila = [
+        member.user.username,
+        fecha,
+        hora,
+        newState.channel.name,
+        "Ingreso",
+      ];
+
+      console.log(`${member.user.username} ingresó a ${newState.channel.name}`);
+    }
+
+    // ==========================
+    // CAMBIO DE CANAL
+    // ==========================
+    else if (
+      oldMonitoreado &&
+      newMonitoreado &&
+      oldChannelId !== newChannelId
+    ) {
+      fila = [
+        member.user.username,
+        fecha,
+        hora,
+        `${oldState.channel.name} → ${newState.channel.name}`,
+        "Cambio de canal",
+      ];
+
+      console.log(
+        `${member.user.username} cambió de ${oldState.channel.name} a ${newState.channel.name}`,
+      );
+    }
+
+    // ==========================
+    // SALIDA
+    // ==========================
+    else if (oldMonitoreado && !newChannelId) {
+      fila = [
+        member.user.username,
+        fecha,
+        hora,
+        oldState.channel.name,
+        "Salida",
+      ];
+
+      console.log(`${member.user.username} salió de ${oldState.channel.name}`);
+    }
+
+    if (!fila) return;
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: "Hoja 1!A:E",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [fila],
+      },
+    });
+  } catch (error) {
+    console.error("Error en voiceStateUpdate:");
+    console.error(error);
+  }
 });
 
 // ==========================
