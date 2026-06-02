@@ -9,6 +9,19 @@ app.get("/", (req, res) => {
   res.send("Bot funcionando");
 });
 
+app.get("/registros", async (req, res) => {
+  try {
+    const sheets = google.sheets({ version: "v4", auth });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: "Hoja 1!A:E",
+    });
+    res.json(response.data.values || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = process.env.PORT;
 
 app.listen(PORT, () => {
